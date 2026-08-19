@@ -189,6 +189,29 @@ async def update_user_by_admin(user_id: str, update_data: UserUpdateByAdmin) -> 
     return UserModel(**updated_doc)
 
 
+async def soft_delete_user(user_id: str) -> None:
+    """Soft-delete a user by id: sets is_deleted=True + deleted_at/updated_at,
+    the document is never actually removed from MongoDB.
+
+    Matches only currently-active users (`is_deleted: False`), so an already
+    soft-deleted id — like a nonexistent one — matches zero documents and
+    raises UserNotFoundError. That keeps this from being callable twice on
+    the same user (each call past the first is a genuine 404, not a silent
+    no-op success), and re-uses the same is_deleted filter already applied
+    by get_users/authenticate_user/get_current_user.
+    """
+    if not ObjectId.is_valid(user_id):
+        raise UserNotFoundError(f"User '{user_id}' not found")
+
+    now = datetime.now(timezone.utc)
+    result = await get_database()[USERS_COLLECTION].update_one(
+        {"_id": ObjectId(user_id), "is_deleted": False},
+        {"$set": {"is_deleted": True, "deleted_at": now, "updated_at": now}},
+    )
+    if result.matched_count == 0:
+        raise UserNotFoundError(f"User '{user_id}' not found")
+
+
 async def get_users(page: int, limit: int, filters: dict) -> tuple[list[UserModel], int]:
     """Fetch one page of non-deleted users, optionally narrowed by filters.
 

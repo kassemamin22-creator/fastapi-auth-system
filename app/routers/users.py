@@ -18,6 +18,7 @@ from app.services.user_service import (
     EmailAlreadyExistsError,
     UserNotFoundError,
     get_users,
+    soft_delete_user,
     update_own_profile,
     update_user_by_admin,
 )
@@ -118,3 +119,26 @@ async def update_user_by_admin_route(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
     return user_to_response(updated_user)
+
+
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user_by_admin(
+    user_id: str,
+    _admin: UserModel = Depends(require_admin),
+) -> None:
+    """Soft-delete a user by id. Admin-only.
+
+    Sets is_deleted=True rather than removing the document — consistent
+    with is_deleted/deleted_at already being part of UserModel and already
+    being honored by GET /users, login, and get_current_user. A nonexistent
+    id and an already-deleted id both 404, so calling this twice on the same
+    user is not silently idempotent — the second call genuinely fails.
+
+    204 No Content, no body: the caller already knows which id they just
+    deleted, and there's nothing else useful to hand back (the row is now
+    invisible to every other endpoint anyway).
+    """
+    try:
+        await soft_delete_user(user_id)
+    except UserNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
