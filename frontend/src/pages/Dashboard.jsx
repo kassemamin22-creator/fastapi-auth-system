@@ -1,10 +1,12 @@
+import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import Card from "../components/ui/Card";
 import Badge from "../components/ui/Badge";
 import SealMark from "../components/ui/SealMark";
 
 // Placeholder for this phase — the real admin dashboard (user management,
-// stats) is built in the next phase. This just proves the authenticated
+// platform stats) is built in the next phase. Self profile editing is
+// already live at /profile; this route still proves the authenticated
 // route + shell + role data are all wired correctly end to end.
 export default function Dashboard() {
   const { user } = useAuth();
@@ -20,10 +22,12 @@ export default function Dashboard() {
           {user?.type}
         </Badge>
         <p className="max-w-md text-sm text-slate">
-          Your real dashboard — profile editing, and for admins, user
-          management and platform stats — arrives in the next build phase.
-          This route confirms the auth flow, protected routing, and role
-          data are all working end to end.
+          Manage your account on the{" "}
+          <Link to="/profile" className="font-medium text-vault hover:underline">
+            Profile
+          </Link>{" "}
+          page. For admins, user management and platform stats arrive in the
+          next build phase.
         </p>
       </Card>
     </div>

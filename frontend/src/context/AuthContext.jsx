@@ -69,6 +69,13 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, [applyToken]);
 
+  // Lets a page that already has the fresh PUT /users/me response (e.g.
+  // Profile, after a save) push it straight into shared state, so the nav
+  // bar's displayed name etc. update immediately without a second fetch.
+  const updateUser = useCallback((next) => {
+    setUser(next);
+  }, []);
+
   const value = {
     user,
     token,
@@ -80,6 +87,7 @@ export function AuthProvider({ children }) {
     login,
     register,
     logout,
+    updateUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

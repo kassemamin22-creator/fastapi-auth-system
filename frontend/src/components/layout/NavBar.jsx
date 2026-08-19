@@ -38,6 +38,9 @@ export default function NavBar() {
               <NavLink to="/dashboard" className={navLinkClass}>
                 Dashboard
               </NavLink>
+              <NavLink to="/profile" className={navLinkClass}>
+                Profile
+              </NavLink>
               {/* TODO: once role-based nav is wired up (next phase), add an
                   admin-only link here (e.g. "Manage Users") gated behind
                   useAuth().isAdmin. */}
