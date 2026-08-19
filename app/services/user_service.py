@@ -7,16 +7,20 @@ owns the MongoDB access and business rules.
 
 from datetime import datetime, timezone
 
+from bson import ObjectId
+from pymongo import ReturnDocument
+
 from app.core.security import hash_password, verify_password
 from app.database import get_database
 from app.models.user import UserModel, UserType
-from app.schemas.user import UserRegister
+from app.schemas.user import UserRegister, UserUpdateSelf
 
 USERS_COLLECTION = "users"
 
 
 class EmailAlreadyExistsError(Exception):
-    """Raised by register_user when the email is already taken.
+    """Raised by register_user / update_own_profile when the email is
+    already taken by another account.
 
     The router catches this and returns 409 Conflict.
     """
@@ -29,6 +33,15 @@ class InvalidCredentialsError(Exception):
     Deliberately a single exception (and message) for all three cases, so
     the router's response can't be used to probe whether a given email is
     registered.
+    """
+
+
+class UserNotFoundError(Exception):
+    """Raised when an operation targets a user id that no longer exists.
+
+    Not expected in normal use — get_current_user already confirmed the
+    caller's account exists earlier in the same request — but guards against
+    the (rare) race where the account is deleted mid-request.
     """
 
 
@@ -85,3 +98,45 @@ async def authenticate_user(email: str, password: str) -> UserModel:
         raise InvalidCredentialsError("Incorrect email or password")
 
     return user
+
+
+async def update_own_profile(user_id: str, update_data: UserUpdateSelf) -> UserModel:
+    """Apply a partial self-service profile update.
+
+    Only fields actually present in the request (`exclude_unset=True`) are
+    changed — omitted fields are left untouched, not overwritten with None.
+    Changing email is blocked if another user already has it; changing
+    password hashes it before storage. UserUpdateSelf has no `type` field,
+    so this function has no way to touch a user's role even in principle.
+    """
+    collection = get_database()[USERS_COLLECTION]
+    fields = update_data.model_dump(exclude_unset=True)
+
+    if "email" in fields:
+        conflict = await collection.find_one(
+            {"email": fields["email"], "_id": {"$ne": ObjectId(user_id)}}
+        )
+        if conflict:
+            raise EmailAlreadyExistsError(f"Email '{fields['email']}' is already registered")
+
+    if "password" in fields:
+        fields["hashed_password"] = hash_password(fields.pop("password"))
+
+    if not fields:
+        # Nothing to change — just return the current state, no write needed.
+        current_doc = await collection.find_one({"_id": ObjectId(user_id)})
+        if current_doc is None:
+            raise UserNotFoundError(f"User '{user_id}' not found")
+        return UserModel(**current_doc)
+
+    fields["updated_at"] = datetime.now(timezone.utc)
+
+    updated_doc = await collection.find_one_and_update(
+        {"_id": ObjectId(user_id)},
+        {"$set": fields},
+        return_document=ReturnDocument.AFTER,
+    )
+    if updated_doc is None:
+        raise UserNotFoundError(f"User '{user_id}' not found")
+
+    return UserModel(**updated_doc)

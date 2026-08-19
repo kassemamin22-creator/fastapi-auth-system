@@ -15,7 +15,7 @@ from typing import Annotated, Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, StringConstraints, field_validator
 
-from app.models.user import UserType
+from app.models.user import UserModel, UserType
 
 # Shared field constraints, defined once and reused across schemas below.
 NameStr = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
@@ -27,17 +27,26 @@ PhoneStr = Annotated[
 AgeInt = Annotated[int, Field(ge=1, le=120)]
 
 
+def _check_password_complexity(value: str) -> str:
+    """Shared rule: at least one letter and one number (length is enforced
+    separately via each field's min_length).
+    """
+    if not re.search(r"[A-Za-z]", value) or not re.search(r"\d", value):
+        raise ValueError("Password must contain at least one letter and one number")
+    return value
+
+
 class _PasswordMixin(BaseModel):
-    """Shared password field + complexity rule for schemas that accept one."""
+    """Shared required password field for schemas that must accept one
+    (registration, admin-creation).
+    """
 
     password: str = Field(..., min_length=8)
 
     @field_validator("password")
     @classmethod
     def password_must_have_letter_and_number(cls, value: str) -> str:
-        if not re.search(r"[A-Za-z]", value) or not re.search(r"\d", value):
-            raise ValueError("Password must contain at least one letter and one number")
-        return value
+        return _check_password_complexity(value)
 
 
 class UserBase(BaseModel):
@@ -89,8 +98,10 @@ class UserResponse(UserBase):
 class UserUpdateSelf(BaseModel):
     """Fields a logged-in client may update on their own profile.
 
-    All fields are optional so callers can send a partial update. No `type`
-    field — clients can never change their own role.
+    All fields are optional so callers can send a partial update — only
+    fields actually present in the request body should be applied (the
+    service layer uses `model_dump(exclude_unset=True)` for this). No `type`
+    field — clients can never change their own role through this schema.
     """
 
     first_name: Optional[NameStr] = None
@@ -99,6 +110,16 @@ class UserUpdateSelf(BaseModel):
     phone: Optional[PhoneStr] = None
     city: Optional[NameStr] = None
     age: Optional[AgeInt] = None
+    # Optional self-service password change; hashed by the service layer
+    # before it ever reaches storage.
+    password: Optional[str] = Field(default=None, min_length=8)
+
+    @field_validator("password")
+    @classmethod
+    def password_must_have_letter_and_number(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        return _check_password_complexity(value)
 
 
 class UserUpdateByAdmin(BaseModel):
@@ -115,3 +136,12 @@ class UserUpdateByAdmin(BaseModel):
     city: Optional[NameStr] = None
     age: Optional[AgeInt] = None
     type: Optional[UserType] = None
+
+
+def user_to_response(user: UserModel) -> UserResponse:
+    """Convert a stored UserModel into the safe UserResponse shape.
+
+    Centralizes the id-stringification + hashed_password exclusion so every
+    router builds responses identically instead of repeating this inline.
+    """
+    return UserResponse(id=str(user.id), **user.model_dump(exclude={"id", "hashed_password"}))

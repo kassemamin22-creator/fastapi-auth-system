@@ -3,14 +3,16 @@
 from fastapi import FastAPI
 
 from app.database import close_mongo_connection, connect_to_mongo
-from app.routers import auth
+from app.routers import auth, users
 
 app = FastAPI(title="FastAPI Auth System")
 
-# Mounted with no prefix, so the routes are exactly "/register" and "/login"
-# — the latter matches oauth2_scheme's tokenUrl="/login" in
-# app/dependencies/auth.py. If a prefix is added later, update that too.
+# auth.router is mounted with no prefix, so its routes are exactly
+# "/register" and "/login". users.router defines its own "/users" prefix
+# internally. Protected routes authenticate via HTTPBearer (see
+# app/dependencies/auth.py), independent of auth.router's own path.
 app.include_router(auth.router)
+app.include_router(users.router)
 
 
 @app.on_event("startup")
