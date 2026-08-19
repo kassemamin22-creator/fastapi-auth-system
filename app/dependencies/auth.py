@@ -10,16 +10,20 @@ from typing import Optional
 
 from bson import ObjectId
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.core.jwt import TokenError, decode_access_token
 from app.database import get_database
 from app.models.user import UserModel, UserType
 
-# tokenUrl only affects the OpenAPI docs' "Authorize" flow (where FastAPI
-# sends the login request) — update this if the login route's actual path
-# ends up different once app/routers/auth.py is implemented.
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
+# HTTPBearer (rather than OAuth2PasswordBearer) because /login is a JSON
+# endpoint (UserLogin: email + password), not an OAuth2 form-data login.
+# OAuth2PasswordBearer makes Swagger's "Authorize" dialog render
+# username/password fields that POST as form data — which doesn't match
+# /login's JSON body and returns 422. HTTPBearer instead makes "Authorize"
+# show a single "Value" field for pasting the raw access_token obtained by
+# calling /login separately, which matches this API's actual login flow.
+bearer_scheme = HTTPBearer()
 
 # Collection name is centralized here since it's the one place that needs it;
 # routers/services should go through get_current_user rather than querying
@@ -27,7 +31,9 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 USERS_COLLECTION = "users"
 
 
-async def get_current_user(token: str = Depends(oauth2_scheme)) -> UserModel:
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+) -> UserModel:
     """Resolve the authenticated user from a bearer JWT.
 
     Use `Depends(get_current_user)` on any route that requires a logged-in
@@ -42,7 +48,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> UserModel:
     )
 
     try:
-        payload = decode_access_token(token)
+        payload = decode_access_token(credentials.credentials)
     except TokenError:
         raise credentials_error
 

@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, status
 
 from app.core.jwt import create_access_token
 from app.schemas.auth import Token, UserLogin
-from app.schemas.user import UserRegister, UserResponse
+from app.schemas.user import UserRegister, UserResponse, user_to_response
 from app.services.user_service import (
     EmailAlreadyExistsError,
     InvalidCredentialsError,
@@ -33,7 +33,7 @@ async def register(user_data: UserRegister) -> UserResponse:
     except EmailAlreadyExistsError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
-    return UserResponse(id=str(user.id), **user.model_dump(exclude={"id", "hashed_password"}))
+    return user_to_response(user)
 
 
 @router.post("/login", response_model=Token)
