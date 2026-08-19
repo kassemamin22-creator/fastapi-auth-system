@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+/*
+  "Vault" design system -- see frontend/DESIGN.md for the full rationale.
+  Tailwind v4 CSS-first theme: --color-NAME generates bg-NAME, text-NAME,
+  and border-NAME utilities; --font-NAME generates a font-NAME utility.
+*/
+@theme {
+  --color-ink: #14132b;
+  --color-vault: #4b3f94;
+  --color-vault-dark: #372f70;
+  --color-brass: #c2913c;
+  --color-mist: #f6f4fb;
+  --color-fog: #e4e1f0;
+  --color-slate: #625c7a;
+  --color-danger: #c1394f;
+  --color-success: #2e8b6f;
+
+  --font-display: "Fraunces", ui-serif, serif;
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  /* The seal mark's outer ring turns slowly — a mechanism quietly at work,
+     not a loading spinner. */
+  --animate-slow-spin: slow-spin 60s linear infinite;
+}
+
+@keyframes slow-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+body {
+  /* Plain CSS rather than @apply: Tailwind v4's dev-server incremental
+     compiler can fail to resolve a custom @theme color via @apply when
+     it's used in the same stylesheet that defines it ("unknown utility
+     class"). The @theme block above already emits these as real CSS
+     custom properties, so referencing them directly is both simpler and
+     avoids that bug entirely. */
+  background-color: var(--color-mist);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
