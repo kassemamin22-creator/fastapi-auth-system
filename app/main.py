@@ -3,6 +3,7 @@
 import logging
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.database import close_mongo_connection, connect_to_mongo
@@ -11,6 +12,22 @@ from app.routers import auth, stats, users
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="FastAPI Auth System")
+
+# The React frontend (Vite dev server) runs on a different origin than the
+# API, so the browser needs an explicit CORS allowance — without this,
+# every fetch() from the frontend fails at the browser level before the
+# request even reaches a route. Restricted to known local dev origins
+# rather than "*" since credentials (the bearer token) are involved.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.exception_handler(Exception)
