@@ -85,6 +85,8 @@ export default function EditUserPanel({ user, isOpen, onClose, onSaved }) {
         setFieldErrors((prev) => ({ ...prev, ...fieldErrorsFromDetail(err.detail) }));
       } else if (err instanceof ApiError && err.status === 404) {
         setFormError("This user no longer exists.");
+      } else if (err instanceof ApiError) {
+        setFormError(messageFromDetail(err.detail));
       } else {
         setFormError("Something went wrong. Please try again.");
       }

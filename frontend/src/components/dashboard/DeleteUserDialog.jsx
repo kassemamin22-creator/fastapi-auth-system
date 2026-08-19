@@ -1,7 +1,7 @@
 import { useState } from "react";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import Alert from "../ui/Alert";
-import { api, ApiError } from "../../lib/api";
+import { api, ApiError, messageFromDetail } from "../../lib/api";
 
 export default function DeleteUserDialog({ user, isOpen, onClose, onDeleted }) {
   const [isDeleting, setIsDeleting] = useState(false);
@@ -14,9 +14,13 @@ export default function DeleteUserDialog({ user, isOpen, onClose, onDeleted }) {
       await api.delete(`/users/${user.id}`);
       onDeleted(user);
     } catch (err) {
+      // Show the actual server/network message when there is one (a 404
+      // really does mean "already removed"; a network failure should say
+      // so, not guess) — only fall back to a generic string for a
+      // genuinely unexpected non-ApiError failure.
       setError(
         err instanceof ApiError
-          ? "Couldn't remove this user. They may have already been removed."
+          ? messageFromDetail(err.detail)
           : "Something went wrong. Please try again."
       );
     } finally {

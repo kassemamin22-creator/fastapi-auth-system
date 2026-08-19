@@ -93,6 +93,11 @@ export default function Register() {
         setFieldErrors((prev) => ({ ...prev, email: messageFromDetail(err.detail) }));
       } else if (err instanceof ApiError && err.status === 422) {
         setFieldErrors((prev) => ({ ...prev, ...fieldErrorsFromDetail(err.detail) }));
+      } else if (err instanceof ApiError) {
+        // Anything else an ApiError can carry (network failure, unexpected
+        // status) still gets its own accurate message rather than a
+        // one-size-fits-all string that hides what actually happened.
+        setFormError(messageFromDetail(err.detail));
       } else {
         setFormError("Something went wrong. Please try again.");
       }

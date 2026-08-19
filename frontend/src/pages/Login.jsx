@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { ApiError } from "../lib/api";
+import { ApiError, messageFromDetail } from "../lib/api";
 import SealMark from "../components/ui/SealMark";
 import Card from "../components/ui/Card";
 import Input from "../components/ui/Input";
@@ -46,11 +46,19 @@ export default function Login() {
       const me = await login(email, password);
       navigate(me.type === "admin" ? "/dashboard" : "/profile");
     } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
-        // Show the backend's own message — it's already the deliberately
-        // generic "incorrect email or password" (never reveals which).
-        setFormError(err.detail);
+      if (err instanceof ApiError) {
+        // Covers every backend/network failure with its own accurate
+        // message: 401 gets the backend's deliberately generic "incorrect
+        // email or password" (never reveals which); a 422 gets its
+        // specific field message(s); a network failure or unreachable API
+        // gets api.js's own clear "Could not reach the server..." message;
+        // any other status still shows whatever the server actually said
+        // instead of a one-size-fits-all string that hides what happened.
+        setFormError(messageFromDetail(err.detail));
       } else {
+        // A non-ApiError here means something threw before/outside the
+        // fetch layer entirely (a genuine unexpected JS error) — this is
+        // the only case that should ever fall back to a generic message.
         setFormError("Something went wrong. Please try again.");
       }
     } finally {

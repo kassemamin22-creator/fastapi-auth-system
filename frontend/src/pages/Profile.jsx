@@ -171,6 +171,8 @@ export default function Profile() {
         setFormError(messageFromDetail(err.detail));
       } else if (err instanceof ApiError && err.status === 422) {
         setFieldErrors((prev) => ({ ...prev, ...fieldErrorsFromDetail(err.detail) }));
+      } else if (err instanceof ApiError) {
+        setFormError(messageFromDetail(err.detail));
       } else {
         setFormError("Something went wrong. Please try again.");
       }
@@ -301,7 +303,7 @@ export default function Profile() {
                   label="New password"
                   type="password"
                   autoComplete="new-password"
-                  placeholder="Leave blank to keep current password"
+                  placeholder="Leave blank to keep it"
                   value={form.password}
                   onChange={setField("password")}
                   error={fieldErrors.password}
