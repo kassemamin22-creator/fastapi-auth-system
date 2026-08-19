@@ -245,3 +245,45 @@ async def get_users(page: int, limit: int, filters: dict) -> tuple[list[UserMode
     users = [UserModel(**doc) async for doc in cursor]
 
     return users, total
+
+
+# --- Public aggregate stats -------------------------------------------------
+# Same `is_deleted: False` scoping as get_users/authenticate_user/
+# get_current_user, so soft-deleted users never show up in these figures
+# even though the /stats endpoints themselves are unauthenticated.
+
+
+async def get_active_user_count() -> int:
+    """Total number of active (non-deleted) users."""
+    return await get_database()[USERS_COLLECTION].count_documents({"is_deleted": False})
+
+
+async def get_average_age() -> tuple[Optional[float], int]:
+    """Average `age` across active users, plus how many users that covers.
+
+    UserModel only has a required `age: int` field (no date-of-birth), so
+    age is used as-is rather than derived from a birth date. Returns
+    (None, 0) when there are no active users, so the router can represent
+    "no data" instead of a misleading average of 0.
+    """
+    pipeline = [
+        {"$match": {"is_deleted": False}},
+        {"$group": {"_id": None, "average_age": {"$avg": "$age"}, "count": {"$sum": 1}}},
+    ]
+    result = await get_database()[USERS_COLLECTION].aggregate(pipeline).to_list(length=1)
+    if not result:
+        return None, 0
+
+    return round(result[0]["average_age"], 2), result[0]["count"]
+
+
+async def get_top_cities(limit: int = 5) -> list[dict]:
+    """Top `limit` cities by active-user count, descending."""
+    pipeline = [
+        {"$match": {"is_deleted": False}},
+        {"$group": {"_id": "$city", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": limit},
+    ]
+    results = await get_database()[USERS_COLLECTION].aggregate(pipeline).to_list(length=limit)
+    return [{"city": doc["_id"], "count": doc["count"]} for doc in results]
