@@ -5,7 +5,9 @@ HTTP concerns (status codes, request/response schemas) while this module
 owns the MongoDB access and business rules.
 """
 
+import re
 from datetime import datetime, timezone
+from typing import Optional
 
 from bson import ObjectId
 from pymongo import ReturnDocument
@@ -140,3 +142,38 @@ async def update_own_profile(user_id: str, update_data: UserUpdateSelf) -> UserM
         raise UserNotFoundError(f"User '{user_id}' not found")
 
     return UserModel(**updated_doc)
+
+
+async def get_users(page: int, limit: int, filters: dict) -> tuple[list[UserModel], int]:
+    """Fetch one page of non-deleted users, optionally narrowed by filters.
+
+    `filters` may contain any of: city, type, first_name, last_name, email
+    (all optional — omitted/None/empty values are ignored, so filters are
+    freely combinable). The string filters are matched as case-insensitive
+    partial matches (regex `.search` semantics), which behaves like a search
+    box rather than requiring an exact value; `type` is matched exactly
+    since it's an enum, not free text. Returns (page_of_users, total_count)
+    so the router can compute total_pages without a second query.
+    """
+    collection = get_database()[USERS_COLLECTION]
+
+    query: dict = {"is_deleted": False}
+
+    for field in ("city", "first_name", "last_name", "email"):
+        value = filters.get(field)
+        if value:
+            # re.escape so a filter value containing regex metacharacters
+            # (e.g. "a+b") is treated as a literal substring, not a pattern.
+            query[field] = {"$regex": re.escape(value), "$options": "i"}
+
+    user_type: Optional[UserType] = filters.get("type")
+    if user_type:
+        query["type"] = user_type.value if isinstance(user_type, UserType) else user_type
+
+    total = await collection.count_documents(query)
+
+    skip = (page - 1) * limit
+    cursor = collection.find(query).skip(skip).limit(limit)
+    users = [UserModel(**doc) async for doc in cursor]
+
+    return users, total

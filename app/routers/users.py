@@ -1,13 +1,22 @@
-"""Endpoints for a logged-in user to view and update their own profile."""
+"""Endpoints for a user's own profile, plus admin user management."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import math
+from typing import Optional
 
-from app.dependencies.auth import get_current_user
-from app.models.user import UserModel
-from app.schemas.user import UserResponse, UserUpdateSelf, user_to_response
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+
+from app.dependencies.auth import get_current_user, require_admin
+from app.models.user import UserModel, UserType
+from app.schemas.user import (
+    UserListResponse,
+    UserResponse,
+    UserUpdateSelf,
+    user_to_response,
+)
 from app.services.user_service import (
     EmailAlreadyExistsError,
     UserNotFoundError,
+    get_users,
     update_own_profile,
 )
 
@@ -45,3 +54,40 @@ async def update_my_profile(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
     return user_to_response(updated_user)
+
+
+@router.get("", response_model=UserListResponse)
+async def list_users(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    city: Optional[str] = Query(None),
+    type: Optional[UserType] = Query(None),
+    first_name: Optional[str] = Query(None),
+    last_name: Optional[str] = Query(None),
+    email: Optional[str] = Query(None),
+    _admin: UserModel = Depends(require_admin),
+) -> UserListResponse:
+    """List/search non-deleted users, paginated. Admin-only.
+
+    Filters are combinable (e.g. city + type together). The string filters
+    (city, first_name, last_name, email) are case-insensitive partial
+    matches — a search-style default rather than requiring an exact value.
+    `_admin` is unused beyond gating access; it's the require_admin
+    dependency that actually enforces "caller must be an admin".
+    """
+    filters = {
+        "city": city,
+        "type": type,
+        "first_name": first_name,
+        "last_name": last_name,
+        "email": email,
+    }
+    users, total = await get_users(page=page, limit=limit, filters=filters)
+
+    return UserListResponse(
+        page=page,
+        limit=limit,
+        total=total,
+        total_pages=math.ceil(total / limit) if total else 0,
+        users=[user_to_response(u) for u in users],
+    )

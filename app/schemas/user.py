@@ -138,6 +138,18 @@ class UserUpdateByAdmin(BaseModel):
     type: Optional[UserType] = None
 
 
+class UserListResponse(BaseModel):
+    """Paginated, filterable listing of users — the shape returned by the
+    admin-only GET /users endpoint.
+    """
+
+    page: int
+    limit: int
+    total: int
+    total_pages: int
+    users: list[UserResponse]
+
+
 def user_to_response(user: UserModel) -> UserResponse:
     """Convert a stored UserModel into the safe UserResponse shape.
 
