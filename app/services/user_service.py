@@ -15,7 +15,7 @@ from pymongo import ReturnDocument
 from app.core.security import hash_password, verify_password
 from app.database import get_database
 from app.models.user import UserModel, UserType
-from app.schemas.user import UserRegister, UserUpdateSelf
+from app.schemas.user import UserRegister, UserUpdateByAdmin, UserUpdateSelf
 
 USERS_COLLECTION = "users"
 
@@ -135,6 +135,51 @@ async def update_own_profile(user_id: str, update_data: UserUpdateSelf) -> UserM
 
     updated_doc = await collection.find_one_and_update(
         {"_id": ObjectId(user_id)},
+        {"$set": fields},
+        return_document=ReturnDocument.AFTER,
+    )
+    if updated_doc is None:
+        raise UserNotFoundError(f"User '{user_id}' not found")
+
+    return UserModel(**updated_doc)
+
+
+async def update_user_by_admin(user_id: str, update_data: UserUpdateByAdmin) -> UserModel:
+    """Apply a partial admin-driven update to any user, by id.
+
+    Unlike update_own_profile, UserUpdateByAdmin includes `type`, so this is
+    the one place a role change is allowed to happen. Soft-deleted users are
+    treated as not found (raises UserNotFoundError, same as a nonexistent
+    id) — reviving a deleted account isn't this endpoint's job. Email
+    changes are checked for uniqueness against other users, same as
+    update_own_profile.
+    """
+    if not ObjectId.is_valid(user_id):
+        raise UserNotFoundError(f"User '{user_id}' not found")
+
+    collection = get_database()[USERS_COLLECTION]
+    fields = update_data.model_dump(exclude_unset=True)
+
+    if "email" in fields:
+        conflict = await collection.find_one(
+            {"email": fields["email"], "_id": {"$ne": ObjectId(user_id)}}
+        )
+        if conflict:
+            raise EmailAlreadyExistsError(f"Email '{fields['email']}' is already registered")
+
+    query = {"_id": ObjectId(user_id), "is_deleted": False}
+
+    if not fields:
+        # Nothing to change — just return the current state, no write needed.
+        current_doc = await collection.find_one(query)
+        if current_doc is None:
+            raise UserNotFoundError(f"User '{user_id}' not found")
+        return UserModel(**current_doc)
+
+    fields["updated_at"] = datetime.now(timezone.utc)
+
+    updated_doc = await collection.find_one_and_update(
+        query,
         {"$set": fields},
         return_document=ReturnDocument.AFTER,
     )

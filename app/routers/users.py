@@ -10,6 +10,7 @@ from app.models.user import UserModel, UserType
 from app.schemas.user import (
     UserListResponse,
     UserResponse,
+    UserUpdateByAdmin,
     UserUpdateSelf,
     user_to_response,
 )
@@ -18,6 +19,7 @@ from app.services.user_service import (
     UserNotFoundError,
     get_users,
     update_own_profile,
+    update_user_by_admin,
 )
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -91,3 +93,28 @@ async def list_users(
         total_pages=math.ceil(total / limit) if total else 0,
         users=[user_to_response(u) for u in users],
     )
+
+
+@router.put("/{user_id}", response_model=UserResponse)
+async def update_user_by_admin_route(
+    user_id: str,
+    update_data: UserUpdateByAdmin,
+    _admin: UserModel = Depends(require_admin),
+) -> UserResponse:
+    """Update any user's profile — including their role — by id. Admin-only.
+
+    UserUpdateByAdmin has a `type` field (unlike UserUpdateSelf), so this is
+    the endpoint that can promote/demote a user. Soft-deleted users and
+    nonexistent ids both come back as 404 — from the caller's perspective a
+    deleted user simply doesn't exist to update. Declared after "/me" and ""
+    so those static routes keep matching first; "/{user_id}" only catches
+    everything else.
+    """
+    try:
+        updated_user = await update_user_by_admin(user_id, update_data)
+    except EmailAlreadyExistsError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except UserNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    return user_to_response(updated_user)
