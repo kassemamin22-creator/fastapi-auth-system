@@ -18,6 +18,14 @@ async def connect_to_mongo() -> None:
     mongodb.client = AsyncIOMotorClient(settings.MONGODB_URL)
     mongodb.database = mongodb.client[settings.DATABASE_NAME]
 
+    # Enforce email uniqueness at the DB level, not just via the app-level
+    # find-then-insert check in user_service.py. Without this, two
+    # concurrent registrations for the same email could both pass that
+    # check and both insert, since the check and the write aren't atomic.
+    # create_index is a no-op if the index already exists, so this is safe
+    # to run on every startup.
+    await mongodb.database["users"].create_index("email", unique=True)
+
 
 async def close_mongo_connection() -> None:
     """Close the MongoDB connection. Call this on FastAPI shutdown."""
