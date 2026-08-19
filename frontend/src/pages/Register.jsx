@@ -55,7 +55,7 @@ function validate(form) {
 }
 
 export default function Register() {
-  const { register, login, isAuthenticated } = useAuth();
+  const { register, login, isAuthenticated, isAdmin } = useAuth();
   const navigate = useNavigate();
 
   const [form, setForm] = useState(EMPTY_FORM);
@@ -64,8 +64,10 @@ export default function Register() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (isAuthenticated) navigate("/dashboard", { replace: true });
-  }, [isAuthenticated, navigate]);
+    // /dashboard is admin-only (see App.jsx's RequireAdmin) — route an
+    // already-logged-in visitor to wherever they actually belong.
+    if (isAuthenticated) navigate(isAdmin ? "/dashboard" : "/profile", { replace: true });
+  }, [isAuthenticated, isAdmin, navigate]);
 
   const setField = (key) => (e) =>
     setForm((prev) => ({ ...prev, [key]: e.target.value }));
@@ -83,7 +85,9 @@ export default function Register() {
       const { confirmPassword: _confirmPassword, ...payload } = form;
       await register({ ...payload, age: Number(payload.age) });
       await login(form.email, form.password);
-      navigate("/dashboard");
+      // Public registration always creates a client account (see
+      // app/services/user_service.py::register_user) — never /dashboard.
+      navigate("/profile");
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         setFieldErrors((prev) => ({ ...prev, email: messageFromDetail(err.detail) }));

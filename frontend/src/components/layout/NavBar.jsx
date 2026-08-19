@@ -9,7 +9,7 @@ const navLinkClass = ({ isActive }) =>
   }`;
 
 export default function NavBar() {
-  const { isAuthenticated, user, logout } = useAuth();
+  const { isAuthenticated, isAdmin, user, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -35,15 +35,14 @@ export default function NavBar() {
         <nav className="flex items-center gap-6">
           {isAuthenticated ? (
             <>
-              <NavLink to="/dashboard" className={navLinkClass}>
-                Dashboard
-              </NavLink>
+              {isAdmin && (
+                <NavLink to="/dashboard" className={navLinkClass}>
+                  Dashboard
+                </NavLink>
+              )}
               <NavLink to="/profile" className={navLinkClass}>
                 Profile
               </NavLink>
-              {/* TODO: once role-based nav is wired up (next phase), add an
-                  admin-only link here (e.g. "Manage Users") gated behind
-                  useAuth().isAdmin. */}
               <span className="hidden text-sm text-mist/60 sm:inline">
                 {user?.first_name}
               </span>

@@ -1,6 +1,7 @@
+import { useEffect, useRef } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
-import { ToastProvider } from "./context/ToastContext";
+import { ToastProvider, useToast } from "./context/ToastContext";
 import Shell from "./components/layout/Shell";
 import FullPageLoader from "./components/ui/FullPageLoader";
 import Landing from "./pages/Landing";
@@ -17,6 +18,26 @@ function RequireAuth({ children }) {
   return children;
 }
 
+function RequireAdmin({ children }) {
+  const { isAdmin } = useAuth();
+  const { showToast } = useToast();
+  // Guards against firing the toast twice under StrictMode's dev-only
+  // mount->unmount->remount cycle — the ref itself survives that cycle
+  // (only effects are re-invoked, not component state), so this correctly
+  // fires once per real mount.
+  const hasNotifiedRef = useRef(false);
+
+  useEffect(() => {
+    if (!isAdmin && !hasNotifiedRef.current) {
+      hasNotifiedRef.current = true;
+      showToast("Admin access required.", "danger");
+    }
+  }, [isAdmin, showToast]);
+
+  if (!isAdmin) return <Navigate to="/profile" replace />;
+  return children;
+}
+
 function AppRoutes() {
   return (
     <Routes>
@@ -28,7 +49,9 @@ function AppRoutes() {
           path="/dashboard"
           element={
             <RequireAuth>
-              <Dashboard />
+              <RequireAdmin>
+                <Dashboard />
+              </RequireAdmin>
             </RequireAuth>
           }
         />

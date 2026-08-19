@@ -89,3 +89,16 @@ export function messageFromDetail(detail) {
   }
   return "Something went wrong. Please try again.";
 }
+
+// Builds a query string from a params object, dropping empty/undefined
+// values so an unset filter never becomes e.g. "?city=" on the wire.
+export function buildQuery(params) {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== "") {
+      search.set(key, value);
+    }
+  }
+  const qs = search.toString();
+  return qs ? `?${qs}` : "";
+}

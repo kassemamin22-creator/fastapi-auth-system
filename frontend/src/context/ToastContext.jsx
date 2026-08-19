@@ -1,16 +1,47 @@
-import { createContext, useCallback, useContext, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 
 const ToastContext = createContext(null);
+
+const DISPLAY_MS = 4000;
+const EXIT_MS = 200;
+
+function Toast({ message, variant, isLeaving }) {
+  const [entered, setEntered] = useState(false);
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setEntered(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  const visible = entered && !isLeaving;
+
+  return (
+    <div
+      role="status"
+      className={`rounded-xl px-4 py-3 text-sm font-medium text-white shadow-lg transition-all duration-200 ease-out motion-reduce:transition-none motion-reduce:duration-0 ${
+        variant === "success" ? "bg-success" : "bg-danger"
+      } ${visible ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"}`}
+    >
+      {message}
+    </div>
+  );
+}
 
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
 
   const showToast = useCallback((message, variant = "success") => {
     const id = crypto.randomUUID();
-    setToasts((prev) => [...prev, { id, message, variant }]);
+    setToasts((prev) => [...prev, { id, message, variant, isLeaving: false }]);
+
     setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 4000);
+      // Two-phase removal — flag as leaving so it can fade/slide out, then
+      // actually drop it once that exit transition has had time to play.
+      setToasts((prev) => prev.map((t) => (t.id === id ? { ...t, isLeaving: true } : t)));
+      setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== id));
+      }, EXIT_MS);
+    }, DISPLAY_MS);
   }, []);
 
   return (
@@ -18,15 +49,7 @@ export function ToastProvider({ children }) {
       {children}
       <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2">
         {toasts.map((t) => (
-          <div
-            key={t.id}
-            role="status"
-            className={`rounded-xl px-4 py-3 text-sm font-medium text-white shadow-lg ${
-              t.variant === "success" ? "bg-success" : "bg-danger"
-            }`}
-          >
-            {t.message}
-          </div>
+          <Toast key={t.id} message={t.message} variant={t.variant} isLeaving={t.isLeaving} />
         ))}
       </div>
     </ToastContext.Provider>

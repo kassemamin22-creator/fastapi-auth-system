@@ -11,7 +11,7 @@ import Alert from "../components/ui/Alert";
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function Login() {
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, isAdmin } = useAuth();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
@@ -21,8 +21,11 @@ export default function Login() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (isAuthenticated) navigate("/dashboard", { replace: true });
-  }, [isAuthenticated, navigate]);
+    // /dashboard is admin-only — a client landing there would just bounce
+    // straight back out via RequireAdmin's own redirect, with a toast that
+    // makes no sense for a perfectly normal login.
+    if (isAuthenticated) navigate(isAdmin ? "/dashboard" : "/profile", { replace: true });
+  }, [isAuthenticated, isAdmin, navigate]);
 
   const validate = () => {
     const errors = {};
@@ -40,8 +43,8 @@ export default function Login() {
 
     setIsSubmitting(true);
     try {
-      await login(email, password);
-      navigate("/dashboard");
+      const me = await login(email, password);
+      navigate(me.type === "admin" ? "/dashboard" : "/profile");
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         // Show the backend's own message — it's already the deliberately
