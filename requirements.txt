@@ -5,6 +5,12 @@ pydantic
 pydantic-settings
 python-jose[cryptography]
 passlib[bcrypt]
+# passlib 1.7.4's bcrypt backend detection reads bcrypt.__about__.__version__,
+# which bcrypt removed in 4.1.0 — passlib then throws AttributeError the
+# first time hash_password()/verify_password() actually runs, turning every
+# register/login into an unhandled 500. Pinned below that break. See:
+# https://github.com/pyca/bcrypt/issues/684
+bcrypt<4.1.0
 python-multipart
 python-dotenv
 email-validator

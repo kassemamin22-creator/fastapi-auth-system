@@ -1,6 +1,7 @@
 """FastAPI application entrypoint: DB lifecycle hooks and router wiring."""
 
 import logging
+import re
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,19 +21,23 @@ app = FastAPI(title="FastAPI Auth System")
 # known origins/patterns rather than "*" since credentials (the bearer
 # token) are involved.
 #
-# allow_origin_regex covers *.vercel.app so preview + production
-# deployments both work without needing the exact URL in advance. TODO:
-# once the final production Vercel URL is known (and especially if a custom
-# domain is added later, which won't end in .vercel.app), add it as an
-# exact string to allow_origins below — the regex alone won't match a
-# custom domain.
+# The exact production URL is listed alongside the *.vercel.app regex as a
+# belt-and-suspenders safety net (in case Vercel ever serves the app from
+# something the regex wouldn't match, e.g. a custom domain added later —
+# that would need its own entry here too, since it won't end in
+# .vercel.app). ALLOWED_ORIGINS/ALLOWED_ORIGIN_REGEX are also reused below
+# by unhandled_exception_handler — see its docstring for why.
+ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://fastapi-auth-system-six.vercel.app",
+]
+ALLOWED_ORIGIN_REGEX = re.compile(r"https://.*\.vercel\.app")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ],
-    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=ALLOWED_ORIGIN_REGEX.pattern,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -51,9 +56,29 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     FastAPI's own handlers for HTTPException/RequestValidationError are
     registered for those specific types and take precedence over this one,
     so 401/403/404/409/422 responses are unaffected.
+
+    CORS headers are added by hand here because CORSMiddleware never gets
+    the chance to add its own: Starlette wraps the *entire* app (including
+    all user-added middleware, CORSMiddleware among them) in
+    ServerErrorMiddleware, which is what actually invokes this handler for
+    a truly unhandled exception. The response this function returns goes
+    straight out from that outermost layer, bypassing CORSMiddleware
+    entirely — so without this, any unhandled exception comes back with no
+    Access-Control-Allow-Origin header at all, and the browser reports it
+    as a CORS failure, hiding the real 500 behind a misleading error.
+    (This is exactly what happened in production: a bcrypt/passlib
+    incompatibility — see requirements.txt — made /login 500 on Render,
+    and the missing CORS header on *that* response was what actually
+    surfaced in the browser as "blocked by CORS policy".)
     """
     logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
-    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+    response = JSONResponse(status_code=500, content={"detail": "Internal server error"})
+    origin = request.headers.get("origin")
+    if origin and (origin in ALLOWED_ORIGINS or ALLOWED_ORIGIN_REGEX.fullmatch(origin)):
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Vary"] = "Origin"
+    return response
 
 # auth.router is mounted with no prefix, so its routes are exactly
 # "/register" and "/login". users.router and stats.router define their own
