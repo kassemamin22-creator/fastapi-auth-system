@@ -13,17 +13,26 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="FastAPI Auth System")
 
-# The React frontend (Vite dev server) runs on a different origin than the
-# API, so the browser needs an explicit CORS allowance — without this,
-# every fetch() from the frontend fails at the browser level before the
-# request even reaches a route. Restricted to known local dev origins
-# rather than "*" since credentials (the bearer token) are involved.
+# The React frontend runs on a different origin than the API (Vite dev
+# server locally, Vercel in production), so the browser needs an explicit
+# CORS allowance — without this, every fetch() from the frontend fails at
+# the browser level before the request even reaches a route. Restricted to
+# known origins/patterns rather than "*" since credentials (the bearer
+# token) are involved.
+#
+# allow_origin_regex covers *.vercel.app so preview + production
+# deployments both work without needing the exact URL in advance. TODO:
+# once the final production Vercel URL is known (and especially if a custom
+# domain is added later, which won't end in .vercel.app), add it as an
+# exact string to allow_origins below — the regex alone won't match a
+# custom domain.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ],
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

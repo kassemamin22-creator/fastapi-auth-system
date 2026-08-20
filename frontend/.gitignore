@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Local env vars — .env.example documents what's needed, real values stay
+# out of git. (".local" above only matches "*.local" filenames, not ".env"
+# itself, so this needs its own entry.)
+.env
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

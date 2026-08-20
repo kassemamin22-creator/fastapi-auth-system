@@ -1,6 +1,13 @@
 // Thin fetch wrapper for the FastAPI backend. No axios — plain fetch is
 // enough for this surface area, and it keeps the dependency list honest.
-const BASE_URL = "http://127.0.0.1:8000";
+//
+// Backend base URL comes from a Vite env var (see .env / .env.example) so
+// the exact same build works against the local backend in dev and the
+// deployed backend in production — nothing environment-specific is baked
+// into the bundle. Falls back to the local backend if the var is ever
+// unset, so a fresh checkout without a .env file still works for local dev
+// instead of silently breaking every request.
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
 // The bearer token lives here, outside React, so this module can attach it
 // to every request without importing AuthContext (which would create a
