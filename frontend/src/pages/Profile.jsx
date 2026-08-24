@@ -10,7 +10,8 @@ import Alert from "../components/ui/Alert";
 import Badge from "../components/ui/Badge";
 import FullPageLoader from "../components/ui/FullPageLoader";
 
-const PHONE_PATTERN = /^\+?[0-9]{7,15}$/;
+// Lebanese numbers only: +961 country code followed by exactly 8 digits.
+const PHONE_PATTERN = /^\+961[0-9]{8}$/;
 
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
   year: "numeric",
@@ -45,7 +46,7 @@ function validate(form) {
 
   if (!form.phone.trim()) errors.phone = "Phone is required.";
   else if (!PHONE_PATTERN.test(form.phone))
-    errors.phone = "Use digits only, 7–15 characters (an optional leading + is fine).";
+    errors.phone = "Enter a valid Lebanese phone number starting with +961.";
 
   const age = Number(form.age);
   if (!form.age) errors.age = "Age is required.";

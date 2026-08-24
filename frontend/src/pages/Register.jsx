@@ -9,7 +9,8 @@ import Button from "../components/ui/Button";
 import Alert from "../components/ui/Alert";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_PATTERN = /^\+?[0-9]{7,15}$/;
+// Lebanese numbers only: +961 country code followed by exactly 8 digits.
+const PHONE_PATTERN = /^\+961[0-9]{8}$/;
 
 const EMPTY_FORM = {
   first_name: "",
@@ -36,7 +37,7 @@ function validate(form) {
 
   if (!form.phone.trim()) errors.phone = "Phone is required.";
   else if (!PHONE_PATTERN.test(form.phone))
-    errors.phone = "Use digits only, 7–15 characters (an optional leading + is fine).";
+    errors.phone = "Enter a valid Lebanese phone number starting with +961.";
 
   const age = Number(form.age);
   if (!form.age) errors.age = "Age is required.";
@@ -157,7 +158,6 @@ export default function Register() {
             <Input
               id="phone"
               label="Phone"
-              placeholder="+15551234567"
               value={form.phone}
               onChange={setField("phone")}
               error={fieldErrors.phone}
